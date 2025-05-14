@@ -1,0 +1,157 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os
+import numpy as np
+import pandas as pd
+import random
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import *
+#from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras import layers
+from tensorflow.keras import Model
+from shutil import copyfile,rmtree
+from tensorflow.keras.metrics import Precision,Recall
+from sklearn.metrics import accuracy_score,precision_score,classification_report,f1_score,confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+from zipfile import ZipFile
+with ZipFile('/content/drive/MyDrive/Colab Notebooks/Deep Learning Lab/Dataset/MangoLeaf.zip', 'r') as zipObj:
+   zipObj.extractall()
+
+!pip install split_folders
+
+import splitfolders
+
+os.chdir('/content/MangoLeaf')
+
+#input = where dataset is present
+#output = where you want the split datasets saved.
+
+splitfolders.ratio("/content/MangoLeaf", output="/content/Output", seed=1337, ratio=(.75, .1, .15))
+
+# ratio of split are in order of train/val/test.
+
+os.chdir('../../')
+
+train_datagen = ImageDataGenerator(rescale=1./255,horizontal_flip=True)
+validation_datagen = ImageDataGenerator(rescale=1./255)
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+train_dir = '/content/Output/train'
+train_generator = train_datagen.flow_from_directory(train_dir,
+                                                   class_mode = 'categorical',
+                                                   target_size = (224,224),
+                                                   batch_size = 32)
+
+validation_dir = '/content/Output/val'
+validation_generator = validation_datagen.flow_from_directory(validation_dir,
+                                                             class_mode = 'categorical',
+                                                             target_size = (224,224),
+                                                             batch_size = 10)
+
+test_dir = '/content/Output/test'
+test_generator = test_datagen.flow_from_directory(test_dir,
+                                                             class_mode = 'categorical',
+                                                             target_size = (224,224),
+                                                             batch_size = 10)
+
+pre_trained_model = VGG16(input_shape=(224,224,3),include_top=False,weights='imagenet')
+
+for layer in pre_trained_model.layers:
+    layer.trainable = False
+
+pre_trained_model.summary()
+
+last_layer = pre_trained_model.get_layer('block5_pool')
+last_output = last_layer.output
+print(last_output)
+
+x = Flatten()(last_output)          #layer=layer()(previous layer)
+x = Dense(1024,activation='relu')(x)
+x = Dropout(0.4)(x)
+x = Dense(4,activation = 'softmax')(x)
+
+model = Model(pre_trained_model.input,x)
+
+model.summary()
+
+metrics = ['accuracy',tf.keras.metrics.Precision(),tf.keras.metrics.Recall()]
+
+model.compile(optimizer = 'adam',loss='categorical_crossentropy',metrics=metrics)
+
+import warnings
+warnings.filterwarnings('ignore')
+
+history = model.fit(train_generator,epochs=2,validation_data=validation_generator,batch_size=10)
+
+!zip -r /content/my_folder.zip /content/Output/test
+
+from google.colab import files
+files.download('my_folder.zip')
+
+from zipfile import ZipFile
+with ZipFile('/content/test.zip', 'r') as zipObj1:
+   zipObj1.extractall('/content')
+
+def calculate_test_preds(source,model):
+  predictions = []
+  for imgname in os.listdir(source):
+    img_path = os.path.join('/content/test',imgname)
+    img = image.load_img(img_path,target_size=(224,224))
+    x = image.img_to_array(img)
+    x = np.expand_dims(x,axis=0)
+    x = x/255.0
+
+    pred = model.predict(x)
+    pred = np.argmax(pred)
+    predictions.append(pred)
+
+  return predictions
+
+predictions = calculate_test_preds('/content/test',model)
+
+true_labels = []
+for filename in os.listdir('/content/test'):
+  for cat in os.listdir('/content/MangoLeaf'):
+    category = os.path.join('/content/MangoLeaf',cat)
+    if filename in os.listdir(category):
+      if cat == '1Partially Infected':
+        true_labels.append(0)
+      if cat == '2Quaterly':
+        true_labels.append(1)
+      if cat == '3Fully infected':
+        true_labels.append(2)
+      if cat == '4Healthy':
+        true_labels.append(3)
+
+print(classification_report(true_labels,predictions))
+
+cm=confusion_matrix(true_labels,predictions)
+print(cm)
+
+import seaborn
+import numpy as np
+seaborn.set(font_scale=2)
+fig, ax = plt.subplots(figsize=(12,10))
+classes = ['Partially Infected','Quaterly','Fully infected','Healthy']
+seaborn.heatmap(cm, annot=True, fmt='d',xticklabels=classes, yticklabels=classes,cmap='YlGnBu')
+bottom, top = ax.get_ylim()
+'''ax.set_ylim(bottom + 0.5, top - 0.5)'''
+plt.tight_layout()
+plt.ylabel('Actual')
+plt.xlabel('Predicted')
+plt.show()
+
+
+
+
+
+

@@ -1,0 +1,105 @@
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.optimizers import SGD, Adadelta, Adam, RMSprop, Adagrad, Nadam, Adamax
+
+# Load in the data
+cifar100 = tf.keras.datasets.cifar100
+
+# Distribute it to train and test set
+(x_train, y_train), (x_val, y_val) = cifar100.load_data()
+
+y_train = tf.one_hot(y_train,
+                     depth=y_train.max() + 1,
+                     dtype=tf.float64)
+y_val = tf.one_hot(y_val,
+                   depth=y_val.max() + 1,
+                   dtype=tf.float64)
+
+y_train = tf.squeeze(y_train)
+y_val = tf.squeeze(y_val)
+
+def create_model(opt):
+  model = tf.keras.models.Sequential([
+        layers.Conv2D(16, (3, 3), activation='relu', input_shape=(32, 32, 3), padding='same'),
+        layers.Conv2D(32, (3, 3), activation='relu', padding='same'),
+        layers.Conv2D(64, (3, 3), activation='relu', padding='same'),
+        layers.MaxPooling2D(2, 2),
+        layers.Conv2D(128, (3, 3), activation='relu', padding='same'),
+        layers.Flatten(),
+        layers.Dense(256, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dense(256, activation='relu'),
+        layers.Dropout(0.3),
+        layers.BatchNormalization(),
+        layers.Dense(100, activation='softmax')
+  ])
+  return model
+
+model = create_model(Adam)
+model.summary()
+
+import warnings
+warnings.filterwarnings('ignore')
+
+def create_callbacks(opt):
+    # Define save path for best model weights
+    checkpoint_path = 'checkpoints/optimizers_best_' + opt + '.keras'
+
+    callbacks = [
+        EarlyStopping(monitor='val_accuracy', patience=3, mode='max', verbose=1),  # Use 'val_accuracy'
+        ModelCheckpoint(checkpoint_path, monitor='val_accuracy', save_best_only=True, mode='max', verbose=1)  # Use 'val_accuracy'
+    ]
+    return callbacks
+
+opts = dict({
+    'sgd': SGD(),
+    'sgd-0001': SGD(learning_rate=0.01, decay=0.0001),
+    'adam': Adam(),
+    'adadelta': Adadelta(),
+    'rmsprop': RMSprop(),
+    'rmsprop-0001': RMSprop(learning_rate=0.0001),
+    'nadam': Nadam(),
+    'adamax': Adamax()
+})
+
+batch_size = 64
+n_epochs = 5
+results = []
+
+# Loop through the optimizers
+for opt in opts:
+    print("********************Now model has taken "+ opt +" as Optimizer********************")
+    model = create_model(opt)  # Assuming create_model is defined elsewhere
+    callbacks = create_callbacks(opt)  # Assuming create_callbacks is defined elsewhere
+    model.compile(loss='mse', optimizer=opts[opt], metrics=['accuracy'])
+
+    # Use X_train and y_train directly without .values
+    hist = model.fit(x_train, y_train, batch_size=batch_size, epochs=n_epochs,
+                     validation_data=(x_val, y_val), verbose=1, callbacks=callbacks)
+
+    best_epoch = np.argmax(hist.history['val_accuracy'])
+    best_acc = hist.history['val_accuracy'][best_epoch]
+
+    # Create a new model instance to load weights
+    best_model = create_model(opt)
+
+    # Load the model weights with the highest validation accuracy
+    best_model.load_weights('checkpoints/optimizers_best_' + opt + '.keras')
+    best_model.compile(loss='mse', optimizer=opts[opt], metrics=['accuracy'])
+
+    # Evaluate the model
+    print("********************Now model gets evaluated********************")
+    score = best_model.evaluate(x_val, y_val, verbose=1)
+    results.append([opt, best_epoch, best_acc, score[1]])  # score[1] corresponds to accuracy
+
+results_df = pd.DataFrame(results, columns=["Optimizer", "Best Epoch", "Best Validation Accuracy", "Validation Accuracy"])
+print("\n******************** Results Summary ********************")
+print(results_df)
