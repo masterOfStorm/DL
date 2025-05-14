@@ -1,0 +1,203 @@
+5: Explore a pretrained model (e.g., MobileNet) on a transfer learning task.
+
+import tensorflow as tf 
+from sklearn.model_selection import train_test_split 
+from sklearn.preprocessing import LabelEncoder
+
+fashion = tf.keras.datasets.fashion_mnist.load_data()
+
+the following labels. 
+class_names = ["T-shirt/top", "Trouser", "Pullover", 
+"Dress", "Coat", "Sandal", \ 
+               "Shirt", "Sneaker", "Bag", "Ankle boot"]
+
+(X_train_full, y_train_full), (X_test, y_test) = fashion 
+
+print("Train dataset shape:", X_train_full.shape) 
+print("Test dataset shape:", X_test.shape)
+
+X_train_full.dtype 
+
+X_train_full, X_test = X_train_full / 255., X_test / 255. 
+y_train_full 
+
+class_0_index = class_names.index("Pullover") 
+class_1_index = class_names.index("T-shirt/top") 
+ 
+print("Index of class_0:", class_0_index) 
+print("Index of class_1:", class_1_index)
+
+class_0_1_index_flag = [True if (x==class_0_index or 
+x==class_1_index) else False for x in y_train_full] 
+print(class_0_1_index_flag[:10]) 
+
+X_train_2_classes_full = X_train_full[class_0_1_index_flag] 
+X_train_2_classes_full.shape
+
+class_0_1_index_flag_flipped = [not flag for flag in 
+class_0_1_index_flag] 
+print(class_0_1_index_flag_flipped[:10]) 
+
+X_train_8_classes_full = X_train_full[class_0_1_index_flag_flipped]
+X_train_8_classes_full.shape 
+
+X_train_2_classes_full.shape[0] + X_train_8_classes_full.shape[0]
+
+y_train_2_classes_full = y_train_full[class_0_1_index_flag] 
+y_train_8_classes_full = y_train_full[class_0_1_index_flag_flipped] 
+print(y_train_2_classes_full.shape) 
+print(y_train_8_classes_full.shape)
+
+X_train_8_classes, X_val_8_classes, y_train_8_classes, 
+y_val_8_classes = train_test_split( 
+    X_train_8_classes_full, y_train_8_classes_full, test_size=5000, 
+random_state=42, stratify=y_train_8_classes_full)  
+print(X_train_8_classes.shape) 
+print(X_val_8_classes.shape)
+
+pixel_means_8_classes = X_train_8_classes.mean(axis=0, keepdims=True) 
+pixel_stds_8_classes = X_train_8_classes.std(axis=0, keepdims=True)
+
+X_train_8_classes_scaled = (X_train_8_classes - 
+pixel_means_8_classes) / pixel_stds_8_classes 
+X_val_8_classes_scaled = (X_val_8_classes - pixel_means_8_classes) / 
+pixel_stds_8_classes 
+ 
+# As the labels ranges from [1, 3, 4, 5, 6, 7, 8, 9], it normalizes 
+the label from 0 through 7 
+label_encoder_8_classes = LabelEncoder() 
+y_train_8_classes_encoded = 
+label_encoder_8_classes.fit_transform(y_train_8_classes) 
+y_val_8_classes_encoded = 
+label_encoder_8_classes.transform(y_val_8_classes) 
+ 
+model = tf.keras.Sequential([ 
+    tf.keras.layers.Flatten(input_shape=[28, 28]), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(8, activation="softmax") 
+]) 
+ 
+model.compile( 
+    loss="sparse_categorical_crossentropy",  
+    optimizer=tf.keras.optimizers.SGD(learning_rate=0.001), 
+    metrics=["accuracy"]) 
+model.summary()
+
+model_history = model.fit(X_train_8_classes_scaled, 
+y_train_8_classes_encoded, epochs=20, validation_data=(X_val_8_classes_scaled, 
+y_val_8_classes_encoded))
+
+model.save("./models/my_fashion_mnist_model.keras") 
+
+X_train_2_classes, X_val_2_classes, y_train_2_classes, 
+y_val_2_classes = train_test_split( 
+    X_train_2_classes_full, y_train_2_classes_full, test_size=3000, 
+random_state=42, stratify=y_train_2_classes_full)
+
+print(X_train_2_classes.shape) 
+print(X_val_2_classes.shape)
+
+pixel_means_2_classes = X_train_2_classes.mean(axis=0, keepdims=True) 
+pixel_stds_2_classes = X_train_2_classes.std(axis=0, keepdims=True) 
+ 
+X_train_2_classes_scaled = (X_train_2_classes - 
+pixel_means_2_classes) / pixel_stds_2_classes 
+X_val_2_classes_scaled = (X_val_2_classes - pixel_means_2_classes) / 
+pixel_stds_2_classes 
+
+label_encoder_2_classes = LabelEncoder() 
+y_train_2_classes_encoded = 
+label_encoder_2_classes.fit_transform(y_train_2_classes) 
+y_val_2_classes_encoded = 
+label_encoder_2_classes.transform(y_val_2_classes) 
+
+tf.keras.backend.clear_session() 
+tf.random.set_seed(42) 
+
+model_from_scratch = tf.keras.Sequential([ 
+    tf.keras.layers.Flatten(input_shape=[28, 28]), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(100, activation="relu", 
+kernel_initializer="he_normal"), 
+    tf.keras.layers.Dense(1, activation="sigmoid") 
+]) 
+ 
+model_from_scratch.compile( 
+    loss="binary_crossentropy",  
+    optimizer=tf.keras.optimizers.SGD(learning_rate=0.001),  
+    metrics=["accuracy"]) 
+
+model_from_scratch.summary() 
+
+model_from_scratch_history = 
+model_from_scratch.fit(X_train_2_classes_scaled, 
+y_train_2_classes_encoded, epochs=20,  
+                                                    
+validation_data=(X_val_2_classes_scaled, y_val_2_classes_encoded))
+class_0_1_index_flag = [True if (x==class_0_index or 
+x==class_1_index) else False for x in y_test]
+
+X_test_2_classes = X_test[class_0_1_index_flag]  
+X_test_2_classes.shape
+
+y_test_2_classes = y_test[class_0_1_index_flag] 
+y_test_2_classes_encoded = 
+label_encoder_2_classes.transform(y_test_2_classes) 
+y_test_2_classes_encoded 
+
+X_test_2_classes_scaled = (X_test_2_classes - pixel_means_2_classes) 
+/ pixel_stds_2_classes 
+model_from_scratch.evaluate(X_test_2_classes_scaled, 
+y_test_2_classes_encoded)
+tf.keras.models.load_model("./models/my_fashion_mnist_model.keras") 
+model_using_pretrained_layers.summary()
+model_using_pretrained_layers.pop() 
+model_using_pretrained_layers.add(tf.keras.layers.Dense(1, 
+activation="sigmoid", name="output")) 
+model_using_pretrained_layers.summary()
+
+ #Fine-tuning already pretrained model  
+X_train_2_classes_scaled_subset, _, y_train_2_classes_encoded_subset, 
+_ = train_test_split( 
+ X_train_2_classes_scaled, y_train_2_classes_encoded, 
+train_size=0.60, stratify=y_train_2_classes_encoded) 
+
+for layer in model_using_pretrained_layers.layers[:-1]: 
+    layer.trainable = False 
+tf.keras.backend.clear_session() 
+tf.random.set_seed(42) 
+ 
+model_using_pretrained_layers.compile( 
+    loss="binary_crossentropy", 
+optimizer=tf.keras.optimizers.SGD(learning_rate=0.001)) 
+ 
+model_using_pretrained_layers_history = 
+model_using_pretrained_layers.fit( 
+    X_train_2_classes_scaled_subset, 
+y_train_2_classes_encoded_subset, epochs=5,  
+    validation_data=(X_val_2_classes_scaled, 
+y_val_2_classes_encoded)) 
+
+for layer in model_using_pretrained_layers.layers[:-1]: 
+    layer.trainable = True 
+
+model_using_pretrained_layers.compile( 
+    loss="binary_crossentropy", 
+optimizer=tf.keras.optimizers.SGD(learning_rate=0.001)) 
+ 
+model_using_pretrained_layers_history = 
+model_using_pretrained_layers.fit( 
+   X_train_2_classes_scaled_subset, y_train_2_classes_encoded_subset, 
+epochs=100,  
+   validation_data=(X_val_2_classes_scaled, y_val_2_classes_encoded))
+
+model_using_pretrained_layers.evaluate(X_test_2_classes_scaled, 
+y_test_2_classes_encoded)

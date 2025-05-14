@@ -1,0 +1,66 @@
+1: Perform basic tensor operations (like addition,multiplication) using Tensor Flow.
+
+import tensorflow as tf 
+# Create a TensorFlow constant tensor with specific values 
+tensor = tf.constant([100, 200, 300]) 
+# Print the shape and data type 
+print("Tensor Shape:", tensor.shape) 
+print("Data Type:", tensor.dtype) 
+
+ADDITION
+
+import tensorflow as tf 
+import numpy as np 
+# Enable eager execution in TensorFlow 2.x (if not already enabled) 
+tf.config.run_functions_eagerly(True) 
+# Step 1: Create two random tensors with shape (2, 3) 
+ts1 = tf.constant(np.random.rand(2, 3)) 
+ts2 = tf.constant(np.random.rand(2, 3)) 
+# Step 2: Perform element-wise addition 
+result_tensor = tf.add(ts1, ts2) 
+# Step 3: Print the original tensors and the result 
+print("Original tensors:") 
+print("Tensor1:") 
+print(ts1.numpy())  # Convert tensor to numpy array for better readability 
+print("Tensor2:") 
+print(ts2.numpy())
+
+SUBSTRACTION
+
+import tensorflow as tf 
+# Step 2: Create two tensors 
+a = tf.constant([10, 20, 30], dtype=tf.float32) 
+b = tf.constant([5, 15, 25], dtype=tf.float32) 
+# Step 3: Perform element-wise subtraction 
+result = tf.math.subtract(a, b) 
+# Step 4: Print the result 
+print('Result of subtraction:', result.numpy())
+
+MULTIPLICATION
+
+import tensorflow as tf 
+# Step 2: Create two tensors of shape (3, 3) 
+tensor_a = tf.constant([[1, 2, 3],  
+[4, 5, 6],  
+[7, 8, 9]]) 
+tensor_b = tf.constant([[9, 8, 7],  
+[6, 5, 4],  
+[3, 2, 1]]) 
+# Step 3: Perform element-wise multiplication 
+result = tf.multiply(tensor_a, tensor_b)  # Alternatively, you can use tensor_a * tensor_b 
+# Step 4: Display the output 
+print(result.numpy()) 
+
+
+DIVISION
+
+import tensorflow as tf 
+# Step 1: Create two constant tensors 
+tensor1 = tf.constant([6, 8, 12, 15], dtype=tf.float32) 
+tensor2 = tf.constant([2, 3, 4, 0], dtype=tf.float32)  # Note the zero in tensor2 
+# Step 2: Perform element-wise division with handling for division by zero 
+result = tf.where(tensor2 != 0, tf.divide(tensor1, tensor2), tf.zeros_like(tensor1)) 
+# Step 3: Print the result 
+print('Result of element-wise division:', result.numpy())
+
+ 
