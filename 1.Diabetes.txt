@@ -1,0 +1,151 @@
+Diabetes 
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
+
+# Task i: Load and preprocess the dataset
+def load_and_preprocess_data(filepath):
+    """Load and preprocess the diabetes dataset."""
+    data = pd.read_csv(filepath)
+    X = data.drop('Outcome', axis=1).values  # Features
+    y = data['Outcome'].values               # Target (binary: 0 or 1)
+    
+    # Standardize features
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    
+    # Split into train, validation, and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+# Task ii-iii: Define a simple Neural Network
+def build_model(optimizer='adam', learning_rate=0.001):
+    """Build a binary classification model."""
+    model = Sequential([
+        Dense(64, activation='relu', input_shape=(8,)),  # Input layer (8 features)
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dense(1, activation='sigmoid')  # Output layer for binary classification
+    ])
+    
+    # Compile the model with the specified optimizer
+    if optimizer.lower() == 'adam':
+        opt = Adam(learning_rate=learning_rate)
+    elif optimizer.lower() == 'rmsprop':
+        opt = RMSprop(learning_rate=learning_rate)
+    else:
+        raise ValueError("Optimizer not supported.")
+    
+    model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+# Task iv-vi: Train with Adam and RMSProp
+def train_and_evaluate(X_train, y_train, X_val, y_val, X_test, y_test, optimizer='adam', learning_rate=0.001, epochs=100):
+    """Train and evaluate the model."""
+    model = build_model(optimizer, learning_rate)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    
+    history = model.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        epochs=epochs,
+        batch_size=32,
+        callbacks=[early_stopping],
+        verbose=0
+    )
+    
+    # Evaluate on test set
+    y_pred = (model.predict(X_test) > 0.5).astype(int)
+    metrics = {
+        'accuracy': accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred),
+        'recall': recall_score(y_test, y_pred),
+        'f1': f1_score(y_test, y_pred),
+        'auc': roc_auc_score(y_test, y_pred)
+    }
+    return history, metrics
+
+# Task vii-x: Plot comparison graphs
+def plot_comparison(adam_history, rmsprop_history, adam_metrics, rmsprop_metrics):
+    """Plot training/validation curves and metrics comparison."""
+    plt.figure(figsize=(18, 6))
+    
+    # Plot training/validation loss
+    plt.subplot(1, 3, 1)
+    plt.plot(adam_history.history['loss'], label='Adam Train Loss')
+    plt.plot(adam_history.history['val_loss'], label='Adam Val Loss')
+    plt.plot(rmsprop_history.history['loss'], label='RMSProp Train Loss')
+    plt.plot(rmsprop_history.history['val_loss'], label='RMSProp Val Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    # Plot training/validation accuracy
+    plt.subplot(1, 3, 2)
+    plt.plot(adam_history.history['accuracy'], label='Adam Train Accuracy')
+    plt.plot(adam_history.history['val_accuracy'], label='Adam Val Accuracy')
+    plt.plot(rmsprop_history.history['accuracy'], label='RMSProp Train Accuracy')
+    plt.plot(rmsprop_history.history['val_accuracy'], label='RMSProp Val Accuracy')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    
+    # Bar plot for test metrics
+    plt.subplot(1, 3, 3)
+    metrics_df = pd.DataFrame({'Adam': adam_metrics, 'RMSProp': rmsprop_metrics})
+    metrics_df.plot(kind='bar', rot=0)
+    plt.title('Test Set Metrics Comparison')
+    plt.ylabel('Score')
+    plt.tight_layout()
+    plt.show()
+
+# Task xi: Print analysis
+def print_analysis(adam_metrics, rmsprop_metrics):
+    """Compare optimizers based on metrics."""
+    print("\n--- Optimizer Comparison ---")
+    print("1. Convergence Speed:")
+    print("   - Adam: Faster initial convergence (see loss curves).")
+    print("   - RMSProp: Slower but more stable in some cases.")
+    
+    print("\n2. Final Metrics:")
+    print(f"   - Adam Accuracy: {adam_metrics['accuracy']:.4f}")
+    print(f"   - RMSProp Accuracy: {rmsprop_metrics['accuracy']:.4f}")
+    
+    print("\n3. Stability:")
+    print("   - Adam: May overshoot but adapts quickly.")
+    print("   - RMSProp: Smoother updates but may stagnate.")
+
+# Main workflow
+if __name__ == "__main__":
+    # Load data (replace with your dataset path)
+    X_train, X_val, X_test, y_train, y_val, y_test = load_and_preprocess_data("diabetes.csv")
+    
+    # Train with Adam (Tasks iv-vi)
+    print("Training with Adam...")
+    adam_history, adam_metrics = train_and_evaluate(
+        X_train, y_train, X_val, y_val, X_test, y_test,
+        optimizer='adam', learning_rate=0.001
+    )
+    
+    # Train with RMSProp (Tasks iv-vi)
+    print("Training with RMSProp...")
+    rmsprop_history, rmsprop_metrics = train_and_evaluate(
+        X_train, y_train, X_val, y_val, X_test, y_test,
+        optimizer='rmsprop', learning_rate=0.001
+    )
+    
+    # Plot results (Tasks vii-x)
+    plot_comparison(adam_history, rmsprop_history, adam_metrics, rmsprop_metrics)
+    
+    # Print analysis (Task xi)
+    print_analysis(adam_metrics, rmsprop_metrics)

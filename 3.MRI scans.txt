@@ -1,0 +1,173 @@
+MRI scans
+
+import os
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models, optimizers, callbacks
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+# Task i: Collect and preprocess MRI scan data
+def load_and_preprocess_data(data_dir, img_size=(224, 224)):
+    """
+    Load and preprocess MRI scan data (resizing, normalization).
+    Args:
+        data_dir: Directory containing MRI images.
+        img_size: Target image size (default: 224x224 for ResNet).
+    Returns:
+        X: Preprocessed images.
+        y: Corresponding labels.
+    """
+    X, y = [], []
+    for class_name in os.listdir(data_dir):
+        class_dir = os.path.join(data_dir, class_name)
+        for img_file in os.listdir(class_dir):
+            img_path = os.path.join(class_dir, img_file)
+            img = tf.keras.preprocessing.image.load_img(img_path, target_size=img_size)
+            img_array = tf.keras.preprocessing.image.img_to_array(img)
+            img_array = img_array / 255.0  # Normalize to [0, 1]
+            X.append(img_array)
+            y.append(class_name)  # Assuming class names are labels (e.g., 'grade1', 'grade2')
+    
+    # Convert labels to numerical values
+    label_map = {label: idx for idx, label in enumerate(np.unique(y))}
+    y = np.array([label_map[label] for label in y])
+    return np.array(X), y
+
+# Task ii: Data augmentation
+def create_augmenter():
+    """Create an ImageDataGenerator for data augmentation."""
+    return ImageDataGenerator(
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        horizontal_flip=True,
+        vertical_flip=True,
+        brightness_range=[0.8, 1.2],
+        zoom_range=0.2,
+        fill_mode='nearest'
+    )
+
+# Task iii: Split dataset into training, validation, and test sets
+def split_data(X, y, test_size=0.2, val_size=0.1):
+    """Split data into train, validation, and test sets."""
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=y)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=val_size, stratify=y_train)
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+# Task iv-v: Design and modify ResNet architecture
+def build_resnet_model(input_shape=(224, 224, 3), num_classes=2):
+    """
+    Build a ResNet-based model for glioma grading.
+    Args:
+        input_shape: Input image shape (default: 224x224x3).
+        num_classes: Number of output classes (e.g., 2 for binary, 4 for multi-class).
+    Returns:
+        model: Compiled ResNet model.
+    """
+    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
+    
+    # Freeze initial layers for transfer learning (Task viii)
+    for layer in base_model.layers[:100]:
+        layer.trainable = False
+    
+    # Add custom layers for glioma grading (Task vi)
+    x = base_model.output
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(512, activation='relu')(x)
+    x = layers.Dropout(0.5)(x)
+    predictions = layers.Dense(num_classes, activation='softmax')(x)
+    
+    model = models.Model(inputs=base_model.input, outputs=predictions)
+    
+    # Compile the model
+    model.compile(
+        optimizer=optimizers.Adam(learning_rate=1e-4),
+        loss='sparse_categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
+
+# Task vii-ix: Train the model with efficient strategies
+def train_model(model, X_train, y_train, X_val, y_val, batch_size=32, epochs=50):
+    """Train the model with early stopping, learning rate scheduling, and checkpointing."""
+    # Callbacks (Task ix)
+    early_stopping = callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    lr_scheduler = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+    checkpoint = callbacks.ModelCheckpoint('best_model.h5', save_best_only=True, monitor='val_accuracy')
+    
+    # Data augmentation (Task ii)
+    datagen = create_augmenter()
+    train_generator = datagen.flow(X_train, y_train, batch_size=batch_size)
+    
+    # Train the model (Task vii)
+    history = model.fit(
+        train_generator,
+        steps_per_epoch=len(X_train) // batch_size,
+        epochs=epochs,
+        validation_data=(X_val, y_val),
+        callbacks=[early_stopping, lr_scheduler, checkpoint]
+    )
+    return history
+
+# Task x: Evaluate the model
+def evaluate_model(model, X_test, y_test):
+    """Evaluate the model using standard metrics."""
+    y_pred = model.predict(X_test)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    
+    # Calculate metrics
+    accuracy = tf.keras.metrics.Accuracy()(y_test, y_pred_classes).numpy()
+    precision = tf.keras.metrics.Precision()(y_test, y_pred_classes).numpy()
+    recall = tf.keras.metrics.Recall()(y_test, y_pred_classes).numpy()
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-7)
+    
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1-Score: {f1:.4f}")
+
+# Task xi: Visualize training metrics
+def plot_training_history(history):
+    """Plot training and validation metrics."""
+    plt.figure(figsize=(12, 4))
+    
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+# Main workflow
+if __name__ == "__main__":
+    # Load and preprocess data (Task i)
+    data_dir = "path/to/your/mri_dataset"  # Replace with your dataset path
+    X, y = load_and_preprocess_data(data_dir)
+    
+    # Split data (Task iii)
+    X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
+    
+    # Build model (Tasks iv-vi, viii)
+    model = build_resnet_model(input_shape=X_train[0].shape, num_classes=len(np.unique(y)))
+    
+    # Train model (Tasks vii, ix)
+    history = train_model(model, X_train, y_train, X_val, y_val)
+    
+    # Evaluate model (Task x)
+    evaluate_model(model, X_test, y_test)
+    
+    # Visualize metrics (Task xi)
+    plot_training_history(history)

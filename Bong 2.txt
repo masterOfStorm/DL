@@ -1,0 +1,159 @@
+Bengali 2
+
+2nd
+
+Here's how you can approach the *"Sneaker Model Classification for Mobile Deployment"* project step by step:
+
+---
+
+## ✅ Project Roadmap
+
+### *1. Data Collection*
+
+* Collect a dataset of sneaker images, either:
+
+  * 📦 From user uploads
+  * 🧭 Public datasets (like [Zalando's Fashion MNIST](https://github.com/zalandoresearch/fashion-mnist), Kaggle sneaker datasets, or your custom images)
+* Ensure *labelled folders* for each sneaker model (e.g., Nike_AirMax, Adidas_UltraBoost, Converse_Classic)
+
+### *2. Image Preprocessing*
+
+Use TensorFlow or PyTorch to:
+
+* *Resize* images (e.g., 224×224 for MobileNet/GoogLeNet)
+* *Normalize* pixel values to \[0, 1]
+* *Augment* data (rotation, flip, zoom) to boost generalization
+
+python
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=20,
+    horizontal_flip=True,
+    zoom_range=0.2,
+    validation_split=0.2
+)
+
+train_data = datagen.flow_from_directory(
+    'sneakers_dataset/',
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical',
+    subset='training'
+)
+
+val_data = datagen.flow_from_directory(
+    'sneakers_dataset/',
+    target_size=(224, 224),
+    batch_size=32,
+    class_mode='categorical',
+    subset='validation'
+)
+
+
+---
+
+### *3. Load Pretrained Models for Comparison*
+
+#### *MobileNet-v1*
+
+Lightweight and optimized for mobile inference.
+
+python
+from tensorflow.keras.applications import MobileNet
+mobilenet = MobileNet(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+
+
+#### *GoogLeNet (Inception v1)*
+
+Heavier but potentially more accurate (not in TensorFlow by default, use PyTorch or TensorFlow Hub).
+
+python
+# Example using TensorFlow Hub
+import tensorflow_hub as hub
+
+googlenet = tf.keras.Sequential([
+    hub.KerasLayer("https://tfhub.dev/google/imagenet/inception_v1/feature_vector/5",
+                   input_shape=(224, 224, 3),
+                   trainable=False),
+    tf.keras.layers.Dense(num_classes, activation='softmax')
+])
+
+
+---
+
+### *4. Add Classification Head & Train*
+
+python
+from tensorflow.keras import layers, models
+
+def build_model(base_model):
+    base_model.trainable = False
+    model = models.Sequential([
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(256, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(train_data.num_classes, activation='softmax')
+    ])
+    model.compile(optimizer='adam',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
+Train both:
+
+python
+mobilenet_model = build_model(mobilenet)
+mobilenet_model.fit(train_data, validation_data=val_data, epochs=10)
+
+
+---
+
+### *5. Evaluate and Compare*
+
+Metrics to track:
+
+* *Accuracy*
+* *Model size (MB)*
+* *Inference time (ms)*
+* *FLOPs (Floating Point Ops)*
+
+You can use:
+
+python
+mobilenet_model.evaluate(val_data)
+mobilenet_model.summary()  # Shows params
+
+
+---
+
+### *6. Deployment for Mobile (TFLite Conversion)*
+
+python
+converter = tf.lite.TFLiteConverter.from_keras_model(mobilenet_model)
+tflite_model = converter.convert()
+with open("mobilenet_sneaker.tflite", "wb") as f:
+    f.write(tflite_model)
+
+
+---
+
+### 📊 Summary Table
+
+| Model        | Size (MB) | Accuracy | Inference Speed | Mobile-Friendly |
+| ------------ | --------- | -------- | --------------- | --------------- |
+| MobileNet-v1 | \~17 MB   | Medium   | Fast            | ✅ Yes           |
+| GoogLeNet    | \~90 MB   | High     | Slower          | ⚠ Limited      |
+
+---
+
+Would you like:
+
+* 📱 Android app integration?
+* 📊 Charts comparing performance?
+* 📁 Sample dataset or a Google Colab notebook?
+
+Let me know and I’ll help generate it!
